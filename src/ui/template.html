@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Code Review</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; height: 100vh; overflow: hidden; }
+
+    .toolbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #161b22; border-bottom: 1px solid #30363d; }
+    .toolbar select { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+    .toolbar select:focus { outline: none; border-color: #58a6ff; }
+    .toolbar .divider { width: 1px; height: 20px; background: #30363d; }
+    .toolbar .stats { color: #8b949e; font-size: 13px; }
+    .toolbar button { background: #238636; color: white; border: none; padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; margin-left: auto; }
+    .toolbar button:hover { background: #2ea043; }
+    .toolbar button.secondary { background: #21262d; border: 1px solid #30363d; margin-left: 8px; }
+    .toolbar button.secondary:hover { background: #30363d; }
+
+    .main { display: flex; height: calc(100vh - 49px); }
+
+    .file-list { width: 260px; background: #0d1117; border-right: 1px solid #30363d; overflow-y: auto; }
+    .file-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #21262d; }
+    .file-item:hover { background: #161b22; }
+    .file-item.active { background: #1f6feb; }
+    .file-item.has-comments::after { content: '💬'; margin-left: auto; font-size: 11px; }
+    .file-status { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 10px; font-weight: bold; }
+    .file-status.added { background: #238636; color: white; }
+    .file-status.modified { background: #9e6a03; color: white; }
+    .file-status.deleted { background: #da3633; color: white; }
+    .file-status.renamed { background: #8957e5; color: white; }
+    .file-status.untracked { background: #6e7681; color: white; }
+    .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-stats { color: #8b949e; font-size: 11px; font-family: monospace; }
+
+    .diff-container { flex: 1; overflow: auto; background: #0d1117; position: relative; }
+    .diff-file-header { padding: 12px 16px; border-bottom: 1px solid #30363d; font-size: 14px; color: #e6edf3; background: #161b22; }
+
+    .diff-view { font-family: 'SF Mono', 'Cascadia Code', Monaco, monospace; font-size: 12px; line-height: 1.5; }
+    .diff-view .shiki { background: transparent !important; }
+    .file-header-line { padding: 6px 16px; background: #161b22; color: #8b949e; font-family: monospace; white-space: pre; }
+    .hunk-header { padding: 6px 16px; color: #58a6ff; background: #161b22; border-top: 1px solid #30363d; border-bottom: 1px solid #30363d; white-space: pre; }
+    .no-newline { padding: 4px 16px; color: #8b949e; font-style: italic; }
+
+    .diff-line { display: flex; min-height: 22px; padding-right: 16px; }
+    .diff-line:hover { background: #161b22; }
+    .diff-line.add { background: rgba(46,160,67,0.15); }
+    .diff-line.remove { background: rgba(248,81,73,0.15); }
+    .diff-line.selected { background: #1f4b7a !important; outline: 1px solid #58a6ff; }
+    .lineno { width: 50px; text-align: right; padding: 0 8px; color: #6e7681; user-select: none; flex-shrink: 0; font-size: 12px; }
+    .prefix { width: 20px; flex-shrink: 0; user-select: none; }
+    .diff-line.add .prefix { color: #3fb950; font-weight: bold; }
+    .diff-line.remove .prefix { color: #f85149; font-weight: bold; }
+    .diff-line.context .prefix { color: #6e7681; }
+    .code { flex: 1; white-space: pre; }
+
+    #add-comment-btn { position: absolute; display: none; width: 22px; height: 22px; background: #1f6feb; color: white; border: none; border-radius: 4px; font-size: 16px; line-height: 22px; text-align: center; cursor: pointer; z-index: 50; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+    #add-comment-btn:hover { background: #388bfd; }
+
+    #comment-box { position: absolute; display: none; background: #161b22; border: 1px solid #58a6ff; border-radius: 8px; padding: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 100; width: 360px; }
+    #comment-box textarea { width: 100%; min-height: 60px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 8px; color: #c9d1d9; font-size: 13px; resize: vertical; font-family: inherit; }
+    #comment-box textarea:focus { outline: none; border-color: #58a6ff; }
+    #comment-box .buttons { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+    #comment-box button { padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none; }
+    .btn-primary { background: #1f6feb; color: white; }
+    .btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+
+    .comments-panel { width: 280px; background: #161b22; border-left: 1px solid #30363d; overflow-y: auto; display: none; }
+    .comments-panel.has-comments { display: block; }
+    .comment-item { padding: 10px 12px; border-bottom: 1px solid #30363d; }
+    .comment-item .location { font-size: 11px; color: #8b949e; margin-bottom: 4px; }
+    .comment-item .text { font-size: 13px; color: #c9d1d9; line-height: 1.4; }
+    .comment-item .delete-btn { float: right; color: #f85149; font-size: 11px; cursor: pointer; opacity: 0; }
+    .comment-item:hover .delete-btn { opacity: 1; }
+
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #8b949e; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <select id="base-branch"><option value="">Loading...</option></select>
+    <span style="color:#6e7681">←</span>
+    <span id="current-branch" style="color:#58a6ff;font-weight:600"></span>
+    <div class="divider"></div>
+    <span class="stats" id="file-stats"></span>
+    <button class="secondary" onclick="refreshDiff()">Refresh</button>
+    <button onclick="submitReview()">Submit Review</button>
+  </div>
+
+  <div class="main">
+    <div class="file-list" id="file-list"><div class="empty-state">Loading...</div></div>
+    <div class="diff-container" id="diff-container">
+      <div class="empty-state">Select a file to review</div>
+    </div>
+    <div class="comments-panel" id="comments-panel">
+      <div style="padding:10px 12px;font-weight:600;border-bottom:1px solid #30363d">Comments</div>
+      <div id="comments-list"></div>
+    </div>
+  </div>
+
+  <button id="add-comment-btn">+</button>
+  <div id="comment-box">
+    <textarea id="comment-text" placeholder="Add a comment..."></textarea>
+    <div class="buttons">
+      <button class="btn-secondary" onclick="cancelComment()">Cancel</button>
+      <button class="btn-primary" onclick="saveComment()">Save</button>
+    </div>
+  </div>
+
+  <script>
+    var state = { baseBranch: '', currentBranch: '', files: [], comments: [], currentFile: null, selectedLines: [] };
+
+    // ── Init ───────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function() {
+      window.glimpse.send({ type: 'init' });
+      document.addEventListener('mouseup', onSelectionChange);
+      document.addEventListener('keyup', onSelectionChange);
+      document.addEventListener('mousedown', function(e) {
+        if (!e.target.closest('#comment-box') && !e.target.closest('#add-comment-btn')) {
+          var box = document.getElementById('comment-box');
+          if (box.style.display === 'block') cancelComment();
+        }
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') cancelComment();
+      });
+    });
+
+    window.glimpse.onMessage = function(data) {
+      switch (data.type) {
+        case 'init':
+          state.currentBranch = data.currentBranch;
+          state.baseBranch = data.baseBranch;
+          state.files = data.files;
+          state.comments = data.comments || [];
+          document.getElementById('current-branch').textContent = state.currentBranch;
+          renderBranches(data.branches);
+          renderFileList();
+          updateStats();
+          break;
+        case 'diff':
+          renderDiff(data.file, data.html);
+          break;
+        case 'comments':
+          state.comments = data.comments;
+          renderComments();
+          renderFileList();
+          break;
+        case 'branches':
+          renderBranches(data.branches);
+          break;
+      }
+    };
+
+    // ── Selection → + button ───────────────────────────────
+
+    function onSelectionChange() {
+      if (document.getElementById('comment-box').style.display === 'block') return;
+
+      var sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) { hideAddBtn(); clearHighlight(); state.selectedLines = []; return; }
+
+      var range = sel.getRangeAt(0);
+      var lines = linesFromRange(range);
+      if (lines.length === 0) { hideAddBtn(); clearHighlight(); state.selectedLines = []; return; }
+
+      clearHighlight();
+      state.selectedLines = lines;
+      for (var i = 0; i < lines.length; i++) lines[i].classList.add('selected');
+      showAddBtn(lines[lines.length - 1]);
+    }
+
+    function linesFromRange(range) {
+      var container = document.querySelector('.diff-content');
+      if (!container) return [];
+      var all = Array.prototype.slice.call(container.querySelectorAll('.diff-line'));
+      if (all.length === 0) return [];
+
+      var s = range.startContainer; s = (s.nodeType === 1 ? s : s.parentElement); s = s && s.closest('.diff-line');
+      var e = range.endContainer;   e = (e.nodeType === 1 ? e : e.parentElement); e = e && e.closest('.diff-line');
+      if (!s || !e) return [];
+
+      var i1 = all.indexOf(s), i2 = all.indexOf(e);
+      if (i1 === -1 || i2 === -1) return [];
+      var from = Math.min(i1, i2), to = Math.max(i1, i2);
+      return all.slice(from, to + 1);
+    }
+
+    function showAddBtn(lastLine) {
+      var btn = document.getElementById('add-comment-btn');
+      var cont = document.getElementById('diff-container');
+      var cRect = cont.getBoundingClientRect();
+      var lRect = lastLine.getBoundingClientRect();
+      btn.style.top = (lRect.top - cRect.top + cont.scrollTop + 2) + 'px';
+      btn.style.left = (cRect.right - 44) + 'px';
+      btn.style.display = 'block';
+      btn.onclick = function() {
+        window.getSelection().removeAllRanges();
+        hideAddBtn();
+        openCommentBox();
+      };
+    }
+
+    function hideAddBtn() { document.getElementById('add-comment-btn').style.display = 'none'; }
+    function clearHighlight() { var l = document.querySelectorAll('.diff-line.selected'); for (var i=0;i<l.length;i++) l[i].classList.remove('selected'); }
+
+    // ── Comment box ────────────────────────────────────────
+
+    function openCommentBox() {
+      if (state.selectedLines.length === 0) return;
+      var box = document.getElementById('comment-box');
+      var lastLine = state.selectedLines[state.selectedLines.length - 1];
+      var cont = document.getElementById('diff-container');
+      var cRect = cont.getBoundingClientRect();
+      var lRect = lastLine.getBoundingClientRect();
+      box.style.top = (lRect.bottom - cRect.top + cont.scrollTop + 6) + 'px';
+      box.style.left = Math.max(20, cRect.left + 20) + 'px';
+      box.style.display = 'block';
+      var ta = document.getElementById('comment-text');
+      ta.value = '';
+      ta.focus();
+      ta.onkeydown = function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveComment(); }
+        else if (e.key === 'Escape') cancelComment();
+      };
+    }
+
+    function cancelComment() {
+      document.getElementById('comment-box').style.display = 'none';
+      clearHighlight();
+      state.selectedLines = [];
+    }
+
+    function saveComment() {
+      var text = document.getElementById('comment-text').value.trim();
+      if (!text || state.selectedLines.length === 0) return;
+
+      var first = state.selectedLines[0], last = state.selectedLines[state.selectedLines.length - 1];
+      var s = parseInt(first.dataset.newLine) || parseInt(first.dataset.oldLine) || 0;
+      var e = parseInt(last.dataset.newLine) || parseInt(last.dataset.oldLine) || 0;
+
+      window.glimpse.send({ type: 'addComment', comment: { file: state.currentFile, startLine: s, endLine: e, text: text } });
+      document.getElementById('comment-box').style.display = 'none';
+      clearHighlight();
+      state.selectedLines = [];
+    }
+
+    // ── Render ─────────────────────────────────────────────
+
+    function renderBranches(branches) {
+      var sel = document.getElementById('base-branch');
+      sel.innerHTML = '';
+      for (var i = 0; i < branches.length; i++) {
+        var o = document.createElement('option');
+        o.value = branches[i]; o.textContent = branches[i];
+        if (branches[i] === state.baseBranch) o.selected = true;
+        sel.appendChild(o);
+      }
+      sel.onchange = function() { state.baseBranch = sel.value; window.glimpse.send({ type: 'changeBranch', branch: state.baseBranch }); };
+    }
+
+    function renderFileList() {
+      var c = document.getElementById('file-list');
+      if (state.files.length === 0) { c.innerHTML = '<div class="empty-state">No changes</div>'; return; }
+      var html = '';
+      for (var i = 0; i < state.files.length; i++) {
+        var f = state.files[i];
+        var hc = state.comments.some(function(c) { return c.file === f.path; });
+        var cls = 'file-item' + (f.path === state.currentFile ? ' active' : '') + (hc ? ' has-comments' : '');
+        html += '<div class="' + cls + '" data-path="' + f.path + '">' +
+          '<span class="file-status ' + f.status + '">' + f.status[0].toUpperCase() + '</span>' +
+          '<span class="file-name">' + f.path + '</span>' +
+          '<span class="file-stats">+' + f.added + '/-' + f.deleted + '</span></div>';
+      }
+      c.innerHTML = html;
+      c.onclick = function(e) { var item = e.target.closest('.file-item'); if (item) window.glimpse.send({ type: 'selectFile', file: item.dataset.path }); };
+    }
+
+    function renderDiff(filePath, html) {
+      state.currentFile = filePath;
+      state.selectedLines = [];
+      hideAddBtn();
+      document.getElementById('diff-container').innerHTML =
+        '<div class="diff-file-header">' + escapeHtml(filePath) + '</div>' +
+        '<div class="diff-content">' + html + '</div>';
+      renderFileList();
+    }
+
+    function renderComments() {
+      var panel = document.getElementById('comments-panel');
+      var list = document.getElementById('comments-list');
+      if (state.comments.length === 0) { panel.classList.remove('has-comments'); return; }
+      panel.classList.add('has-comments');
+      var html = '';
+      for (var i = 0; i < state.comments.length; i++) {
+        var c = state.comments[i];
+        var loc = c.file + ':' + c.startLine + (c.endLine !== c.startLine ? '-' + c.endLine : '');
+        html += '<div class="comment-item"><div class="location">' + escapeHtml(loc) +
+          ' <span class="delete-btn" data-idx="' + i + '">Delete</span></div>' +
+          '<div class="text">' + escapeHtml(c.text) + '</div></div>';
+      }
+      list.innerHTML = html;
+      list.onclick = function(e) { var d = e.target.closest('.delete-btn'); if (d) window.glimpse.send({ type: 'deleteComment', index: parseInt(d.dataset.idx) }); };
+    }
+
+    function refreshDiff() { window.glimpse.send({ type: 'refresh' }); }
+    function submitReview() {
+      if (state.comments.length === 0 && !confirm('No comments added. Submit anyway?')) return;
+      window.glimpse.send({ type: 'submit' });
+    }
+    function updateStats() {
+      var a = 0, d = 0;
+      for (var i = 0; i < state.files.length; i++) { a += state.files[i].added; d += state.files[i].deleted; }
+      document.getElementById('file-stats').textContent = state.files.length + ' files, +' + a + '/-' + d;
+    }
+    function escapeHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  </script>
+</body>
+</html>
