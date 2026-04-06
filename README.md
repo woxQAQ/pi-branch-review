@@ -7,5 +7,5 @@ Just a personal vibe project. Not promise for running at your host
 # how to use
 
 ```sh
-pi install git:https://github.com/woxQAQ/pi-branch-view
+pi install git:https://github.com/woxQAQ/pi-branch-review
 ```
