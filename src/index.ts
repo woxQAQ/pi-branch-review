@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { open, type GlimpseWindow } from "glimpseui";
+import { open, type GlimpseWindow } from "./glimpse.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -38,10 +38,14 @@ export default function (pi: ExtensionAPI) {
     currentFile: null,
   };
 
-  const template = readFileSync(join(__dirname, "ui", "template.html"), "utf-8");
+  const template = readFileSync(
+    join(__dirname, "ui", "template.html"),
+    "utf-8",
+  );
 
   pi.registerCommand("review", {
-    description: "Open code review UI for current branch or uncommitted changes",
+    description:
+      "Open code review UI for current branch or uncommitted changes",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) {
         ctx.ui.notify("Code review requires interactive mode", "error");
@@ -58,13 +62,19 @@ export default function (pi: ExtensionAPI) {
       // Get base branch first
       const detectedBase = await detectBaseBranch(cwd);
       state.baseBranch = detectedBase || "main";
-      
+
       // Run diagnostics
       const diagnostics = await getDiagnostics(cwd, state.baseBranch);
-      
+
       // Check for any changes to review
-      if (!diagnostics.hasUncommittedChanges && diagnostics.commitsAhead === 0) {
-        ctx.ui.notify("No changes to review (no uncommitted changes and no commits ahead)", "info");
+      if (
+        !diagnostics.hasUncommittedChanges &&
+        diagnostics.commitsAhead === 0
+      ) {
+        ctx.ui.notify(
+          "No changes to review (no uncommitted changes and no commits ahead)",
+          "info",
+        );
         return;
       }
 
@@ -123,7 +133,10 @@ export default function (pi: ExtensionAPI) {
             const filePath = data.file;
             state.currentFile = filePath;
             const diff = await getFileDiff(cwd, filePath, state.baseBranch);
-            const highlighted = await highlighter!.highlightDiff(filePath, diff);
+            const highlighted = await highlighter!.highlightDiff(
+              filePath,
+              diff,
+            );
             window?.send(`
               window.glimpse.onMessage({
                 type: 'diff',
@@ -211,34 +224,6 @@ export default function (pi: ExtensionAPI) {
       });
     },
   });
-
-  pi.registerTool({
-    name: "open_code_review",
-    label: "Open Code Review",
-    description:
-      "Open the code review UI to review uncommitted changes or committed changes. " +
-      "User can annotate lines and submit comments as a prompt.",
-    parameters: {
-      type: "object",
-      properties: {
-        baseBranch: {
-          type: "string",
-          description: "Base branch to compare against (default: auto-detect main/master)",
-        },
-      },
-    } as any,
-    async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      pi.sendUserMessage("/review");
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Code review UI opened. Waiting for user to submit comments...",
-          },
-        ],
-      };
-    },
-  });
 }
 
 function generateId(): string {
@@ -246,8 +231,12 @@ function generateId(): string {
 }
 
 function buildReviewPrompt(
-  state: ReviewState, 
-  diagnostics: { hasUncommittedChanges: boolean; commitsAhead: number; currentBranch: string }
+  state: ReviewState,
+  diagnostics: {
+    hasUncommittedChanges: boolean;
+    commitsAhead: number;
+    currentBranch: string;
+  },
 ): string {
   const hasCommits = diagnostics.commitsAhead > 0;
   const hasUncommitted = diagnostics.hasUncommittedChanges;
@@ -260,17 +249,22 @@ function buildReviewPrompt(
       intro += ` (uncommitted changes)`;
     }
     intro += `:\n\n`;
-    
-    return intro + `Files changed:
-${state.files.map((f) => {
-  const badges = [];
-  if (f.isStaged) badges.push("staged");
-  if (f.isWorkingDir) badges.push("modified");
-  const badge = badges.length > 0 ? ` [${badges.join(", ")}]` : "";
-  return `- ${f.path}${badge} (+${f.added}/-${f.deleted})`;
-}).join("\n")}
 
-No specific comments were added. Please review the code and suggest improvements.`;
+    return (
+      intro +
+      `Files changed:
+${state.files
+  .map((f) => {
+    const badges = [];
+    if (f.isStaged) badges.push("staged");
+    if (f.isWorkingDir) badges.push("modified");
+    const badge = badges.length > 0 ? ` [${badges.join(", ")}]` : "";
+    return `- ${f.path}${badge} (+${f.added}/-${f.deleted})`;
+  })
+  .join("\n")}
+
+No specific comments were added. Please review the code and suggest improvements.`
+    );
   }
 
   const byFile = new Map<string, Comment[]>();
@@ -283,7 +277,7 @@ No specific comments were added. Please review the code and suggest improvements
   let prompt = `Please review the following code review comments and make the requested changes.
 
 `;
-  
+
   if (hasCommits && hasUncommitted) {
     prompt += `Changes: ${diagnostics.commitsAhead} commits ahead + uncommitted changes\n`;
   } else if (hasUncommitted) {
