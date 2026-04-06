@@ -1,10 +1,14 @@
 {
-  "name": "pi-code-review",
-  "version": "1.0.0",
+  "name": "pi-branch-review",
+  "version": "0.1.0",
   "type": "module",
   "dependencies": {
     "glimpseui": "^0.6.0",
     "shiki": "^1.0.0"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
   }
 }
-
