@@ -46,7 +46,16 @@
     .diff-line:hover { background: #161b22; }
     .diff-line.add { background: rgba(46,160,67,0.15); }
     .diff-line.remove { background: rgba(248,81,73,0.15); }
-    .diff-line.selected { background: #1f4b7a !important; outline: 1px solid #58a6ff; }
+    .diff-line.selected { background: rgba(31,75,122,0.25); border-left: 3px solid #58a6ff; padding-left: 0; }
+    .diff-line.selected.add { background: rgba(46,160,67,0.30); border-left-color: #3fb950; }
+    .diff-line.selected.remove { background: rgba(248,81,73,0.30); border-left-color: #f85149; }
+    .diff-line.selected.context { background: rgba(31,75,122,0.25); border-left-color: #58a6ff; }
+
+    /* Selection colors per line type */
+    .diff-view ::selection { background: rgba(88,166,255,0.25); }
+    .diff-line.add ::selection { background: rgba(63,185,80,0.30); }
+    .diff-line.remove ::selection { background: rgba(248,81,73,0.30); }
+    .diff-line.selected ::selection { background: rgba(88,166,255,0.15); }
     .lineno { width: 50px; text-align: right; padding: 0 8px; color: #6e7681; user-select: none; flex-shrink: 0; font-size: 12px; }
     .prefix { width: 20px; flex-shrink: 0; user-select: none; }
     .diff-line.add .prefix { color: #3fb950; font-weight: bold; }
